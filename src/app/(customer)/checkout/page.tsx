@@ -34,6 +34,7 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("TEST");
+
   const [customer, setCustomer] = useState<CustomerDetails>({
     name: "",
     phone: "",
@@ -133,17 +134,17 @@ export default function CheckoutPage() {
         );
       }
 
-      localStorage.removeItem("crave-cart");
-
       const orderId = data.orderId ?? data.id;
 
-      if (orderId) {
-        router.push(`/order-success?orderId=${encodeURIComponent(orderId)}`);
-      } else {
-        throw new Error(
-          "Order response did not contain an order ID."
-        );
+      if (!orderId) {
+        throw new Error("Order response did not contain an order ID.");
       }
+
+      localStorage.removeItem("crave-cart");
+
+      router.push(
+        `/order-success?orderId=${encodeURIComponent(orderId)}`
+      );
     } catch (err) {
       setError(
         err instanceof Error
@@ -239,7 +240,9 @@ export default function CheckoutPage() {
               <h2>02. Delivery address</h2>
 
               <div className="checkout-field">
-                <label htmlFor="customer-address">House / Street address *</label>
+                <label htmlFor="customer-address">
+                  House / Street address *
+                </label>
                 <textarea
                   id="customer-address"
                   required
@@ -312,10 +315,14 @@ export default function CheckoutPage() {
                   checked={paymentMethod === "TEST"}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                 />
+
                 <span>
                   <strong>Test payment</strong>
-                  <small>Use the assignment's test payment flow.</small>
+                  <small>
+                    Use the assignment&apos;s test payment flow.
+                  </small>
                 </span>
+
                 <span>🧪</span>
               </label>
             </div>
@@ -331,11 +338,15 @@ export default function CheckoutPage() {
             ) : (
               <div className="checkout-summary-items">
                 {cart.map(({ item, quantity }) => (
-                  <div className="checkout-summary-item" key={item.id}>
+                  <div
+                    className="checkout-summary-item"
+                    key={item.id}
+                  >
                     <div>
                       <strong>{item.name}</strong>
                       <small>Qty: {quantity}</small>
                     </div>
+
                     <span>
                       {formatPrice(item.basePrice * quantity)}
                     </span>
@@ -384,3 +395,4 @@ export default function CheckoutPage() {
     </main>
   );
 }
+

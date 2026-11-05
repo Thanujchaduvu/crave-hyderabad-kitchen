@@ -284,7 +284,7 @@ export default function PartyOrdersPage() {
 
       <section className="booking-section" id="booking-form">
         <div className="booking-intro">
-          <span className="section-tag">LET'S PLAN TOGETHER</span>
+          <span className="section-tag">LET&apos;S PLAN TOGETHER</span>
           <h2>Tell us about your event.</h2>
           <p>
             Share your requirements. Our catering team will

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 interface OrderItem {
@@ -20,10 +20,10 @@ interface OrderDetails {
   createdAt?: string;
 }
 
-export default function OrderSuccessPage() {
+function OrderSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const orderId = searchParams?.get("orderId");
+  const orderId = searchParams?.get("orderId") ?? null;
 
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,32 +36,47 @@ export default function OrderSuccessPage() {
       return;
     }
 
+    const id = orderId;
+    let cancelled = false;
+
     async function fetchOrder() {
       try {
         const response = await fetch(
-          `/api/orders/${encodeURIComponent(orderId!)}`,
+          `/api/orders/${encodeURIComponent(id)}`,
           { cache: "no-store" }
         );
 
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.message || "Unable to load order details.");
+          throw new Error(
+            data.message || "Unable to load order details."
+          );
         }
 
-        setOrder(data.order ?? data);
+        if (!cancelled) {
+          setOrder(data.order ?? data);
+        }
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Unable to retrieve your order."
-        );
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Unable to retrieve your order."
+          );
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     fetchOrder();
+
+    return () => {
+      cancelled = true;
+    };
   }, [orderId]);
 
   const formatPrice = (amount: number) =>
@@ -89,6 +104,7 @@ export default function OrderSuccessPage() {
           <div className="order-failure-icon">!</div>
           <h1>Order details unavailable</h1>
           <p>{error || "We couldn't find this order."}</p>
+
           <button
             type="button"
             onClick={() => router.push("/menu")}
@@ -156,11 +172,17 @@ export default function OrderSuccessPage() {
             <h3>Order summary</h3>
 
             {order.items.map((item, index) => (
-              <div className="order-confirmed-item" key={index}>
+              <div
+                className="order-confirmed-item"
+                key={`${item.name}-${index}`}
+              >
                 <span>
                   {item.name} × {item.quantity}
                 </span>
-                <strong>{formatPrice(item.price * item.quantity)}</strong>
+
+                <strong>
+                  {formatPrice(item.price * item.quantity)}
+                </strong>
               </div>
             ))}
           </div>
@@ -198,5 +220,22 @@ export default function OrderSuccessPage() {
         </p>
       </section>
     </main>
+  );
+}
+
+export default function OrderSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="order-success-page">
+          <div className="order-success-loading">
+            <div className="order-loading-spinner" />
+            <p>Loading your order details...</p>
+          </div>
+        </main>
+      }
+    >
+      <OrderSuccessContent />
+    </Suspense>
   );
 }

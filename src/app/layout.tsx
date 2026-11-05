@@ -1,6 +1,5 @@
 
 import type { Metadata, Viewport } from "next";
-// @ts-ignore -- Next.js loads global CSS at build time.
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,8 +24,7 @@ export const metadata: Metadata = {
 
   openGraph: {
     title: "CRAVE — Hyderabadi Kitchen",
-    description:
-      "Layers of flavour. Made to be shared.",
+    description: "Layers of flavour. Made to be shared.",
     type: "website",
     locale: "en_IN",
   },
@@ -50,9 +48,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">
-        {children}
-      </body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
+

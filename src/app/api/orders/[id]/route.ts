@@ -2,122 +2,140 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 interface RouteContext {
-  params: { id: string } | Promise<{ id: string }>;
+  params: {
+    id: string;
+  };
 }
 
 export async function GET(
   request: NextRequest,
-  context: RouteContext
+  { params }: RouteContext
 ) {
   try {
-    const { id } = await context.params;
+    const { id } = params;
 
     if (!id) {
       return NextResponse.json(
-        { message: "Order ID is required." },
+        {
+          success: false,
+          message: "Order ID is required",
+        },
         { status: 400 }
       );
     }
 
     const order = await prisma.order.findUnique({
-      where: {
-        id,
-      },
+      where: { id },
       include: {
-        outlet: {
-          select: {
-            id: true,
-            name: true,
-            city: true,
-            fssaiLicense: true,
-          },
-        },
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-          },
-        },
+        outlet: true,
+        customer: true,
         items: {
           include: {
-            menuItem: {
-              select: {
-                id: true,
-                name: true,
-                imageUrl: true,
-                isVeg: true,
-              },
-            },
+            menuItem: true,
           },
         },
       },
     });
 
     if (!order) {
+      const recentOrders = await prisma.order.findMany({
+        select: {
+          id: true,
+          orderNumber: true,
+          outletId: true,
+          status: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 10,
+      });
+
       return NextResponse.json(
-        { message: "Order not found." },
+        {
+          success: false,
+          message: "Order not found",
+          requestedId: id,
+          recentOrders,
+        },
         { status: 404 }
       );
     }
 
-    const formattedItems = order.items.map((orderItem) => ({
-      id: orderItem.id,
-      menuItemId: orderItem.menuItemId,
-      name: orderItem.menuItem.name,
-      quantity: orderItem.quantity,
-      price: orderItem.unitPrice,
-      unitPrice: orderItem.unitPrice,
-      imageUrl: orderItem.menuItem.imageUrl,
-      isVeg: orderItem.menuItem.isVeg,
-      lineTotal: orderItem.unitPrice * orderItem.quantity,
-    }));
+    return NextResponse.json({
+      success: true,
+      order: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        outletId: order.outletId,
+        status: order.status,
 
-    const formattedOrder = {
-      id: order.id,
-      orderNumber: order.orderNumber,
-      status: order.status,
-      paymentMethod: order.paymentMethod,
-      paymentStatus: order.paymentStatus,
-      subtotal: order.subtotal,
-      gstAmount: order.gstAmount,
-      discountAmount: order.discountAmount,
-      totalAmount: order.totalAmount,
+        paymentStatus: order.paymentStatus,
+        paymentMethod: order.paymentMethod,
 
-      estimatedPrepTime: order.estPrepMins,
-      estPrepMins: order.estPrepMins,
-      promisedAt: order.promisedAt,
-      overdueFlag: order.overdueFlag,
+        subtotal: Number(order.subtotal),
+        gstAmount: Number(order.gstAmount),
+        discountAmount: Number(order.discountAmount),
+        totalAmount: Number(order.totalAmount),
 
-      deliveryAddress: order.deliveryAddress,
-      deliveryCity: order.deliveryCity,
-      deliveryPincode: order.deliveryPincode,
-      deliveryInstructions: order.deliveryInstructions,
+        estimatedPrepTime: order.estPrepMins,
+        promisedAt: order.promisedAt,
+        overdueFlag: order.overdueFlag,
 
-      createdAt: order.createdAt,
-      updatedAt: order.updatedAt,
+        customer: {
+          name: order.customer.name,
+          phone: order.customer.phone,
+        },
 
-      outlet: order.outlet,
-      customer: order.customer,
-      items: formattedItems,
-    };
+        outlet: {
+          id: order.outlet.id,
+          name: order.outlet.name,
+          city: order.outlet.city,
+        },
+
+        items: order.items.map((item) => {
+          const unitPrice = Number(item.unitPrice);
+
+          return {
+            id: item.id,
+            menuItemId: item.menuItemId,
+            name: item.menuItem.name,
+            quantity: item.quantity,
+            unitPrice,
+            price: unitPrice,
+            total: unitPrice * item.quantity,
+          };
+        }),
+
+        deliveryAddress: order.deliveryAddress,
+        deliveryCity: order.deliveryCity,
+        deliveryPincode: order.deliveryPincode,
+        deliveryInstructions: order.deliveryInstructions,
+
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+      },
+    });
+  } catch (error) {
+    console.error("GET ORDER ERROR:", error);
 
     return NextResponse.json(
       {
-        success: true,
-        order: formattedOrder,
+        success: false,
+        message: "Failed to retrieve order",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error instanceof Error
+              ? error.message
+              : "Unknown error"
+            : undefined,
       },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error("Get order API error:", error);
-
-    return NextResponse.json(
-      { message: "Unable to retrieve order details." },
       { status: 500 }
     );
   }
 }
+
+

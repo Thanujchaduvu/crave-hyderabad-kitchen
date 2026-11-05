@@ -70,7 +70,6 @@ export default function CartDrawer({
       return;
     }
 
-    // Checkout page will be implemented in the next stage.
     window.location.href = "/checkout";
   }
 
@@ -127,8 +126,9 @@ export default function CartDrawer({
             <div className="cart-empty-icon">🛒</div>
             <h3>Your cart is empty</h3>
             <p>
-              Looks like you haven't added anything delicious yet.
+              Looks like you haven&apos;t added anything delicious yet.
             </p>
+
             <button
               type="button"
               onClick={onClose}
@@ -239,3 +239,4 @@ export default function CartDrawer({
     </div>
   );
 }
+

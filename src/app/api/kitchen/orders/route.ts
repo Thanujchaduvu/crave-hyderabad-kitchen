@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 const validStatuses = [
   "PLACED",
   "PREPARING",
@@ -15,7 +17,7 @@ type OrderStatus = (typeof validStatuses)[number];
 export async function GET(request: NextRequest) {
   try {
     // 1. Read query parameters
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = request.nextUrl;
 
     const outletId = searchParams.get("outletId");
     const status = searchParams.get("status");
@@ -50,9 +52,7 @@ export async function GET(request: NextRequest) {
     const totalOrders = await prisma.order.count();
 
     const matchingOrders = await prisma.order.count({
-      where: {
-        outletId,
-      },
+      where: { outletId },
     });
 
     const testOrder = await prisma.order.findUnique({
@@ -68,17 +68,15 @@ export async function GET(request: NextRequest) {
     });
 
     console.log("========== CRAVE DATABASE DIAGNOSTIC ==========");
-
     console.log({
       totalOrders,
       requestedOutletId: outletId,
       matchingOrders,
       testOrder,
     });
-
     console.log("================================================");
 
-    // 5. Fetch orders for the requested outlet
+    // 5. Fetch orders
     const orders = await prisma.order.findMany({
       where: {
         outletId,
@@ -154,8 +152,7 @@ export async function GET(request: NextRequest) {
           isVeg: item.menuItem.isVeg,
           quantity: item.quantity,
           unitPrice: Number(item.unitPrice),
-          total:
-            Number(item.unitPrice) * item.quantity,
+          total: Number(item.unitPrice) * item.quantity,
         })),
 
         subtotal: Number(order.subtotal),
@@ -183,7 +180,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // 7. Return response with detailed diagnostics
+    // 7. Return response
     return NextResponse.json({
       success: true,
       count: formattedOrders.length,
