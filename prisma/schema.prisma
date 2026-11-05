@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// User Roles across the system
+enum Role {
+  CUSTOMER
+  KITCHEN_STAFF
+  OUTLET_MANAGER
+  CENTRAL_ADMIN
+  CATERING_MANAGER
+}
+
+// Order Status Pipeline
+enum OrderStatus {
+  PLACED
+  PREPARING
+  READY_FOR_PICKUP
+  COMPLETED
+  CANCELLED
+}
+
+// Party Order Approval Pipeline
+enum PartyOrderStatus {
+  PENDING_REVIEW
+  APPROVED
+  DEPOSIT_PAID
+  REJECTED
+  COMPLETED
+}
+
+// Outlets & Cloud Kitchens
+model Outlet {
+  id               String            @id @default(uuid())
+  name             String
+  city             String            @default("Hyderabad")
+  latitude         Float
+  longitude        Float
+  deliveryRadiusKm Float             @default(7.0)
+  fssaiLicense     String
+  minPrepMins      Int               @default(15)
+  isCloudKitchen   Boolean           @default(false)
+  active           Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  
+  orders           Order[]
+  partyOrders      PartyOrder[]
+  inventory        OutletInventory[]
+
+  @@index([latitude, longitude])
+  @@map("outlets")
+}
+
+// Users (Customers, Staff, Admins)
+model User {
+  id                 String       @id @default(uuid())
+  phone              String       @unique
+  email              String?      @unique
+  name               String?
+  role               Role         @default(CUSTOMER)
+  loyaltyPoints      Int          @default(0)
+  dpdpOptInMarketing Boolean      @default(false)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  orders             Order[]
+  partyOrders        PartyOrder[]
+
+  @@index([phone])
+  @@index([email])
+  @@map("users")
+}
+
+// Categories (Biryani, Starters, Desserts, Beverages)
+model Category {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  sortOrder Int        @default(0)
+  items     MenuItem[]
+
+  @@map("categories")
+}
+
+// Central Menu Items
+model MenuItem {
+  id             String            @id @default(uuid())
+  categoryId     String
+  name           String
+  description    String?
+  basePrice      Float             // Price including 5% GST
+  isVeg          Boolean
+  spiceLevel     Int               @default(1) // 1 = Low, 2 = Medium, 3 = High
+  allergens      String[]          // e.g. ["Nuts", "Dairy"]
+  prepComplexity Float             @default(1.0) // Complexity weight for AI calculation
+  imageUrl       String?
+  active         Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  category       Category          @relation(fields: [categoryId], references: [id])
+  inventory      OutletInventory[]
+  orderItems     OrderItem[]
+
+  @@map("menu_items")
+}
+
+// Outlet Inventory & Item 86ing (Out of Stock Toggles)
+model OutletInventory {
+  outletId           String
+  menuItemId         String
+  isAvailable        Boolean  @default(true)
+  customPriceOverride Float?   // City or outlet price override if applicable
+
+  outlet             Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  menuItem           MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@id([outletId, menuItemId])
+  @@map("outlet_inventory")
+}
+
+// Orders
+
+model Order {
+  id             String      @id @default(uuid())
+  orderNumber    String      @unique
+  outletId       String
+  customerId     String
+  status         OrderStatus @default(PLACED)
+  paymentMethod  String
+  paymentStatus  String      @default("PAID")
+
+  subtotal       Float
+  gstAmount      Float
+  discountAmount Float       @default(0.0)
+  pointsRedeemed Int         @default(0)
+  totalAmount    Float
+
+  estPrepMins    Int
+  promisedAt     DateTime
+  overdueFlag    Boolean     @default(false)
+
+  // Customer delivery details
+  deliveryAddress      String?
+  deliveryCity         String?
+  deliveryPincode      String?
+  deliveryInstructions String?
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  outlet         Outlet      @relation(fields: [outletId], references: [id])
+  customer       User        @relation(fields: [customerId], references: [id])
+  items          OrderItem[]
+
+  @@index([outletId, status])
+  @@index([customerId])
+  @@map("orders")
+}
+
+
+// Order Items Junction Table
+model OrderItem {
+  id         String   @id @default(uuid())
+  orderId    String
+  menuItemId String
+  quantity   Int
+  unitPrice  Float
+  
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@map("order_items")
+}
+
+// Catering & Party Orders (Min 24 Hours Notice)
+model PartyOrder {
+  id             String           @id @default(uuid())
+  customerId     String
+  outletId       String?
+  guestCount     Int
+  eventDate      DateTime
+  menuSummary    String
+  estimatedQuote Float
+  status         PartyOrderStatus @default(PENDING_REVIEW)
+  managerNotes   String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  customer       User             @relation(fields: [customerId], references: [id])
+  outlet         Outlet?          @relation(fields: [outletId], references: [id])
+
+  @@map("party_orders")
+}
